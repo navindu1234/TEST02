@@ -3,21 +3,39 @@ import { db, collection, query, limit, orderBy, onSnapshot, updateDoc, doc } fro
 
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    setLoading(true);
     const q = query(
       collection(db, 'tasks'),
       orderBy('createdAt', 'desc'),
       limit(5)
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const tasksData = [];
-      querySnapshot.forEach((doc) => {
-        tasksData.push({ id: doc.id, ...doc.data() });
-      });
-      setTasks(tasksData);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const tasksData = [];
+        querySnapshot.forEach((doc) => {
+          tasksData.push({ 
+            id: doc.id, 
+            title: doc.data().title || 'No title',
+            description: doc.data().description || '',
+            completed: doc.data().completed || false,
+            createdAt: doc.data().createdAt?.toDate() || new Date()
+          });
+        });
+        setTasks(tasksData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Firestore error:", error);
+        setError("Failed to load tasks");
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
@@ -31,14 +49,18 @@ const TaskList = () => {
       });
     } catch (error) {
       console.error("Error completing task: ", error);
+      setError("Failed to complete task");
     }
   };
+
+  if (loading) return <div>Loading tasks...</div>;
+  if (error) return <div className="error">{error}</div>;
 
   return (
     <div className="task-list-container">
       <h2>Recent Tasks</h2>
       {tasks.length === 0 ? (
-        <p className="no-tasks">No tasks yet. Add one above!</p>
+        <p className="no-tasks">No tasks found. Add your first task!</p>
       ) : (
         <ul className="task-list">
           {tasks.map((task) => (
